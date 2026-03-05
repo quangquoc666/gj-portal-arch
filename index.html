@@ -420,15 +420,77 @@
             .spec-grid { gap: 12px; }
         }
 
+        /* ── HAMBURGER ── */
+        #menu-btn {
+            display: none;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--ink-soft); width: 34px; height: 34px;
+            border-radius: 8px; cursor: pointer; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        #menu-btn svg { width: 16px; height: 16px; }
+
+        /* ── SIDEBAR OVERLAY ── */
+        #sidebar-overlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 99;
+            background: rgba(0,0,0,.4);
+            backdrop-filter: blur(2px);
+        }
+        #sidebar-overlay.open { display: block; }
+
         /* ── MOBILE ── */
         @media (max-width: 900px) {
             :root { --nav-w: 0px; }
-            #sidebar { transform: translateX(-240px); width: 240px; }
+
+            #menu-btn { display: flex; }
+
+            #sidebar {
+                transform: translateX(-260px);
+                width: 260px;
+                z-index: 200;
+                box-shadow: var(--shadow-lg);
+            }
             #sidebar.open { transform: translateX(0); }
+
             #main { margin-left: 0; }
-            #hero { padding: 40px 24px 36px; }
-            .doc-section { padding: 48px 24px 0; }
+
+            #hero { padding: 36px 20px 32px; }
+            #hero::before, #hero::after { display: none; }
+            .hero-title { font-size: 1.8rem; }
+            .hero-sub { font-size: 0.88rem; }
+
+            .doc-section { padding: 44px 20px 0; }
+            .doc-section + .doc-section { padding-top: 56px; }
+
+            .spec-grid { grid-template-columns: 1fr; gap: 12px; padding-bottom: 48px; }
+
             #reading-bar { left: 0; }
+
+            /* hide share label on small screens */
+            .tb-share-label { display: none; }
+            .tb-btn { padding: 6px 10px; }
+            .tb-btn.primary { padding: 6px 12px; }
+
+            /* diagram horizontal scroll hint */
+            .diagram-body::after {
+                content: '← scroll →';
+                display: block;
+                text-align: center;
+                font-size: 0.65rem;
+                color: var(--ink-ghost);
+                padding: 8px 0 4px;
+                font-family: 'DM Mono', monospace;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-tags { gap: 6px; }
+            .hero-tag { font-size: 0.65rem; }
+            .sec-title { font-size: 1.15rem; }
+            .topbar-badge { display: none; }
+            #modal-box { border-radius: 12px 12px 0 0; align-self: flex-end; max-height: 85vh; }
+            #modal-overlay { padding: 0; align-items: flex-end; }
         }
     </style>
 </head>
@@ -438,13 +500,16 @@
 <!-- TOP BAR -->
 <div id="topbar">
     <div class="topbar-left">
+        <button id="menu-btn" onclick="toggleSidebar()" title="Menu">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+        </button>
         <a href="#" class="topbar-logo"><strong>GREENJADE</strong> Portal</a>
         <span class="topbar-badge">v1.2.0</span>
     </div>
     <div class="topbar-right">
         <button class="tb-btn" onclick="copyShareLink()" title="Copy link">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 8a2.5 2.5 0 0 0 3.536 3.536l2-2a2.5 2.5 0 0 0-3.536-3.536"/><path d="M10.5 8a2.5 2.5 0 0 0-3.536-3.536l-2 2A2.5 2.5 0 0 0 5.5 10"/></svg>
-            Share
+            <span class="tb-share-label">Share</span>
         </button>
         <button class="tb-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
             <svg id="theme-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.22 3.22l1.06 1.06M11.72 11.72l1.06 1.06M11.72 4.28l1.06-1.06M3.22 12.78l1.06-1.06"/></svg>
@@ -455,6 +520,7 @@
         </button>
     </div>
 </div>
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <!-- READING PROGRESS -->
 <div id="reading-bar"><div id="reading-progress"></div></div>
@@ -922,11 +988,23 @@ function copySection(id) {
 }
 
 // ── MOBILE SIDEBAR ──
-document.getElementById('topbar').addEventListener('click', e => {
-    if (e.target.closest('.topbar-logo')) {
-        const s = document.getElementById('sidebar');
-        s.classList.toggle('open');
-    }
+function toggleSidebar() {
+    const s = document.getElementById('sidebar');
+    const o = document.getElementById('sidebar-overlay');
+    const isOpen = s.classList.toggle('open');
+    o.classList.toggle('open', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+}
+
+// close sidebar on nav link click (mobile)
+document.querySelectorAll('.nav-link').forEach(l => {
+    l.addEventListener('click', () => {
+        if (window.innerWidth <= 900) {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    });
 });
 </script>
 </body>
