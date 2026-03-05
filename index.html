@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenJade Portal — System Architecture v1.2.0</title>
+    <meta name="description" content="Advanced Auth Architecture documentation for GreenJade Portal — REF: SYS-ARCH-PROTOCOL">
+    <meta property="og:title" content="GreenJade Portal — System Architecture v1.2.0">
+    <meta property="og:description" content="Advanced Auth Architecture: Rate Limiting, Audit Trail, Security Hardening">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --ink: #0d1117;
+            --ink-soft: #374151;
+            --ink-dim: #6b7280;
+            --ink-ghost: #9ca3af;
+            --paper: #ffffff;
+            --paper-warm: #fafaf9;
+            --paper-tint: #f4f4f5;
+            --accent: #0ea5e9;
+            --accent-alt: #10b981;
+            --accent-warn: #f59e0b;
+            --border: #e4e4e7;
+            --border-strong: #d1d5db;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.04);
+            --shadow-lg: 0 20px 60px rgba(0,0,0,.10);
+            --radius: 12px;
+            --nav-w: 240px;
+            --transition: 220ms cubic-bezier(.4,0,.2,1);
+        }
+
+        [data-theme="dark"] {
+            --ink: #f4f4f5;
+            --ink-soft: #d4d4d8;
+            --ink-dim: #a1a1aa;
+            --ink-ghost: #71717a;
+            --paper: #09090b;
+            --paper-warm: #0f0f12;
+            --paper-tint: #18181b;
+            --border: #27272a;
+            --border-strong: #3f3f46;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.4);
+            --shadow-lg: 0 20px 60px rgba(0,0,0,.5);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            margin: 0;
+            overflow-x: hidden;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* ── TOP BAR ── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+            height: 52px;
+            background: rgba(255,255,255,.88);
+            backdrop-filter: blur(12px) saturate(160%);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px;
+            transition: background var(--transition), border-color var(--transition);
+        }
+        [data-theme="dark"] #topbar {
+            background: rgba(9,9,11,.88);
+        }
+
+        .topbar-left { display: flex; align-items: center; gap: 16px; }
+        .topbar-logo {
+            font-family: 'Fraunces', serif;
+            font-weight: 300;
+            font-size: 1.05rem;
+            letter-spacing: .02em;
+            color: var(--ink);
+            text-decoration: none;
+        }
+        .topbar-logo strong { font-weight: 400; }
+        .topbar-badge {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.68rem;
+            background: var(--paper-tint);
+            border: 1px solid var(--border);
+            color: var(--ink-dim);
+            padding: 2px 8px;
+            border-radius: 100px;
+        }
+        .topbar-right { display: flex; align-items: center; gap: 8px; }
+
+        .tb-btn {
+            display: flex; align-items: center; gap: 6px;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--ink-soft); padding: 6px 12px; border-radius: 8px;
+            font-size: 0.8rem; font-family: 'DM Sans', sans-serif; font-weight: 500;
+            cursor: pointer; transition: all var(--transition); text-decoration: none;
+            white-space: nowrap;
+        }
+        .tb-btn:hover { background: var(--paper-tint); border-color: var(--border-strong); color: var(--ink); }
+        .tb-btn.primary {
+            background: var(--ink); color: var(--paper); border-color: var(--ink);
+        }
+        .tb-btn.primary:hover { opacity: .85; }
+        .tb-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+        /* ── SIDEBAR NAV ── */
+        #sidebar {
+            position: fixed; top: 52px; left: 0; bottom: 0;
+            width: var(--nav-w);
+            background: var(--paper-warm);
+            border-right: 1px solid var(--border);
+            padding: 28px 0 24px;
+            overflow-y: auto;
+            z-index: 100;
+            transition: transform var(--transition);
+        }
+
+        .nav-section-label {
+            font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .12em; color: var(--ink-ghost);
+            padding: 0 20px; margin: 20px 0 6px;
+        }
+        .nav-section-label:first-child { margin-top: 0; }
+
+        .nav-link {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 20px;
+            text-decoration: none;
+            font-size: 0.82rem; font-weight: 400;
+            color: var(--ink-dim);
+            border-left: 2px solid transparent;
+            transition: all var(--transition);
+            line-height: 1.4;
+        }
+        .nav-link:hover { color: var(--ink); background: var(--paper-tint); }
+        .nav-link.active { color: var(--accent); border-left-color: var(--accent); background: rgba(14,165,233,.06); font-weight: 500; }
+        .nav-link .nav-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.65rem; color: var(--ink-ghost);
+            min-width: 18px;
+        }
+
+        .nav-divider { height: 1px; background: var(--border); margin: 16px 20px; }
+
+        .nav-meta {
+            padding: 0 20px;
+            font-size: 0.72rem; color: var(--ink-ghost);
+            line-height: 1.7;
+        }
+        .nav-meta b { color: var(--ink-dim); display: block; margin-bottom: 2px; font-family: 'DM Mono', monospace; font-size: 0.7rem; }
+
+        /* ── MAIN CONTENT ── */
+        #main {
+            margin-left: var(--nav-w);
+            padding: 52px 0 80px;
+            min-height: 100vh;
+        }
+
+        /* ── HERO ── */
+        #hero {
+            padding: 64px 60px 56px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, var(--paper) 0%, var(--paper-warm) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        #hero::before {
+            content: '';
+            position: absolute; top: -80px; right: -60px;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(14,165,233,.07) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        #hero::after {
+            content: '';
+            position: absolute; bottom: -60px; left: 100px;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(16,185,129,.05) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-kicker {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.72rem; color: var(--accent);
+            letter-spacing: .1em; text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .hero-title {
+            font-family: 'Fraunces', serif;
+            font-weight: 300;
+            font-size: clamp(2rem, 4vw, 3rem);
+            color: var(--ink);
+            margin: 0 0 8px;
+            letter-spacing: -.03em;
+            line-height: 1.1;
+        }
+        .hero-title em { font-style: italic; color: var(--ink-soft); }
+
+        .hero-sub {
+            font-size: 1rem; color: var(--ink-dim);
+            margin: 14px 0 32px;
+            max-width: 560px;
+            font-weight: 300;
+        }
+
+        .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+        .hero-tag {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.72rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            color: var(--ink-dim);
+            background: var(--paper);
+        }
+        .hero-tag.hi { border-color: rgba(14,165,233,.3); color: var(--accent); background: rgba(14,165,233,.05); }
+        .hero-tag.gr { border-color: rgba(16,185,129,.3); color: var(--accent-alt); background: rgba(16,185,129,.05); }
+
+        /* ── SECTIONS ── */
+        .doc-section {
+            padding: 60px 60px 0;
+            animation: fadeUp .5s ease both;
+        }
+        .doc-section + .doc-section { padding-top: 72px; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-head {
+            display: flex; align-items: flex-start; gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .sec-num {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.7rem; font-weight: 500;
+            color: var(--paper); background: var(--ink);
+            padding: 4px 9px; border-radius: 6px;
+            margin-top: 4px; flex-shrink: 0;
+        }
+
+        .sec-info { flex: 1; }
+        .sec-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.4rem; font-weight: 300;
+            color: var(--ink); margin: 0 0 4px;
+            letter-spacing: -.02em;
+        }
+        .sec-sub { font-size: 0.82rem; color: var(--ink-dim); margin: 0; }
+
+        /* ── DIAGRAM CANVAS ── */
+        .diagram-wrap {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--paper-warm);
+            position: relative;
+            overflow: hidden;
+            transition: border-color var(--transition);
+        }
+        .diagram-wrap:hover { border-color: var(--border-strong); }
+
+        .diagram-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--paper);
+        }
+        .diagram-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.7rem; color: var(--ink-dim);
+            display: flex; align-items: center; gap: 6px;
+        }
+        .diagram-label::before {
+            content: ''; display: block;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--accent-alt);
+        }
+        .diagram-actions { display: flex; gap: 6px; }
+        .diag-btn {
+            background: var(--paper-tint); border: 1px solid var(--border);
+            color: var(--ink-dim); padding: 4px 10px;
+            border-radius: 6px; font-size: 0.72rem; cursor: pointer;
+            transition: all var(--transition); display: flex; align-items: center; gap: 4px;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .diag-btn:hover { background: var(--border); color: var(--ink); }
+
+        .diagram-body {
+            padding: 32px 24px;
+            overflow-x: auto;
+        }
+        .mermaid { min-width: 700px; }
+
+        /* ── MODAL FULLSCREEN ── */
+        #modal-overlay {
+            position: fixed; inset: 0; z-index: 500;
+            background: rgba(0,0,0,.75);
+            backdrop-filter: blur(6px);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        #modal-overlay.open { display: flex; }
+        #modal-box {
+            background: var(--paper);
+            border-radius: 16px;
+            width: 100%; max-width: 1200px;
+            max-height: 90vh;
+            display: flex; flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+        #modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        #modal-title { font-size: 0.85rem; font-weight: 500; color: var(--ink); }
+        #modal-close {
+            background: var(--paper-tint); border: 1px solid var(--border);
+            color: var(--ink-dim); width: 30px; height: 30px;
+            border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all var(--transition); font-size: 1rem;
+        }
+        #modal-close:hover { background: var(--border); color: var(--ink); }
+        #modal-content {
+            flex: 1; overflow: auto;
+            padding: 32px;
+        }
+
+        /* ── SPEC GRID ── */
+        .spec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            padding-bottom: 60px;
+        }
+
+        .spec-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            background: var(--paper);
+            transition: all var(--transition);
+        }
+        .spec-card:hover {
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .spec-cat {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.65rem; letter-spacing: .1em; text-transform: uppercase;
+            color: var(--accent); margin-bottom: 12px;
+        }
+        .spec-cat.gr { color: var(--accent-alt); }
+        .spec-cat.am { color: var(--accent-warn); }
+
+        .spec-card h3 {
+            font-size: 0.95rem; font-weight: 600; color: var(--ink);
+            margin: 0 0 16px;
+        }
+
+        .spec-table { width: 100%; border-collapse: collapse; }
+        .spec-table tr { border-bottom: 1px solid var(--border); }
+        .spec-table tr:last-child { border-bottom: none; }
+        .spec-table td {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.76rem; padding: 7px 0;
+            vertical-align: top;
+        }
+        .spec-table td:first-child { color: var(--ink-dim); padding-right: 12px; }
+        .spec-table td:last-child { color: var(--ink); font-weight: 500; text-align: right; }
+
+        /* ── PROGRESS READING ── */
+        #reading-bar {
+            position: fixed; top: 52px; left: var(--nav-w); right: 0; height: 2px;
+            background: var(--border); z-index: 150;
+        }
+        #reading-progress {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            transition: width .1s linear;
+        }
+
+        /* ── TOAST ── */
+        #toast {
+            position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+            background: var(--ink); color: var(--paper);
+            padding: 10px 18px; border-radius: 9px;
+            font-size: 0.8rem; font-weight: 500;
+            opacity: 0; pointer-events: none;
+            transition: opacity .25s ease;
+            z-index: 999; white-space: nowrap;
+        }
+        #toast.show { opacity: 1; }
+
+        /* ── PRINT ── */
+        @media print {
+            #topbar, #sidebar, #reading-bar, #modal-overlay, #toast { display: none !important; }
+            #main { margin-left: 0 !important; padding-top: 0 !important; }
+            .diagram-toolbar { display: none; }
+            .diagram-body { padding: 0; }
+            .mermaid { min-width: unset; }
+            .doc-section { padding: 32px 32px 0; break-inside: avoid; }
+            .spec-grid { gap: 12px; }
+        }
+
+        /* ── MOBILE ── */
+        @media (max-width: 900px) {
+            :root { --nav-w: 0px; }
+            #sidebar { transform: translateX(-240px); width: 240px; }
+            #sidebar.open { transform: translateX(0); }
+            #main { margin-left: 0; }
+            #hero { padding: 40px 24px 36px; }
+            .doc-section { padding: 48px 24px 0; }
+            #reading-bar { left: 0; }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+    <div class="topbar-left">
+        <a href="#" class="topbar-logo"><strong>GREENJADE</strong> Portal</a>
+        <span class="topbar-badge">v1.2.0</span>
+    </div>
+    <div class="topbar-right">
+        <button class="tb-btn" onclick="copyShareLink()" title="Copy link">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 8a2.5 2.5 0 0 0 3.536 3.536l2-2a2.5 2.5 0 0 0-3.536-3.536"/><path d="M10.5 8a2.5 2.5 0 0 0-3.536-3.536l-2 2A2.5 2.5 0 0 0 5.5 10"/></svg>
+            Share
+        </button>
+        <button class="tb-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+            <svg id="theme-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.22 3.22l1.06 1.06M11.72 11.72l1.06 1.06M11.72 4.28l1.06-1.06M3.22 12.78l1.06-1.06"/></svg>
+        </button>
+        <button class="tb-btn primary" onclick="window.print()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="1" width="10" height="9" rx="1.5"/><path d="M3 11H1.5A.5.5 0 0 1 1 10.5v-4A.5.5 0 0 1 1.5 6h13a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H13"/><rect x="3.5" y="10" width="9" height="5" rx="1"/></svg>
+            Export PDF
+        </button>
+    </div>
+</div>
+
+<!-- READING PROGRESS -->
+<div id="reading-bar"><div id="reading-progress"></div></div>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+    <span class="nav-section-label">Architecture</span>
+    <a href="#s01" class="nav-link" data-section="s01"><span class="nav-num">01</span>Global Structure</a>
+    <a href="#s02" class="nav-link" data-section="s02"><span class="nav-num">02</span>Game Services</a>
+    <a href="#s03" class="nav-link" data-section="s03"><span class="nav-num">03</span>Sequence Flow</a>
+    <a href="#s04" class="nav-link" data-section="s04"><span class="nav-num">04</span>Tech Topology</a>
+    <a href="#s05" class="nav-link" data-section="s05"><span class="nav-num">05</span>Auth Mindmap</a>
+    <a href="#s06" class="nav-link" data-section="s06"><span class="nav-num">06</span>Security Specs</a>
+    <div class="nav-divider"></div>
+    <div class="nav-meta">
+        <b>REF: SYS-ARCH-PROTOCOL</b>
+        STC_MAR_2026/05<br>
+        CONFIDENTIAL
+    </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+    <!-- HERO -->
+    <div id="hero">
+        <div class="hero-kicker">SYS-ARCH-PROTOCOL · STC_MAR_2026/05</div>
+        <h1 class="hero-title">GreenJade <em>Portal</em><br>System Architecture</h1>
+        <p class="hero-sub">Advanced Authentication Architecture — Rate Limiting, Audit Trail, Security Hardening, Game Context Integration.</p>
+        <div class="hero-tags">
+            <span class="hero-tag hi">Auth v1.2</span>
+            <span class="hero-tag gr">6 Diagrams</span>
+            <span class="hero-tag">Argon2id</span>
+            <span class="hero-tag">Event-Driven</span>
+            <span class="hero-tag">PostgreSQL</span>
+            <span class="hero-tag">CONFIDENTIAL</span>
+        </div>
+    </div>
+
+    <!-- SECTION 01 -->
+    <section class="doc-section" id="s01">
+        <div class="section-head">
+            <span class="sec-num">01</span>
+            <div class="sec-info">
+                <h2 class="sec-title">Global Site Structure</h2>
+                <p class="sec-sub">Multidomain Ecosystem — Cấu trúc Toàn Trang</p>
+            </div>
+        </div>
+        <div class="diagram-wrap">
+            <div class="diagram-toolbar">
+                <span class="diagram-label">flowchart · top-down</span>
+                <div class="diagram-actions">
+                    <button class="diag-btn" onclick="expandDiagram('diag-01','Global Site Structure')">⤢ Expand</button>
+                    <button class="diag-btn" onclick="copySection('s01')">⎘ Copy link</button>
+                </div>
+            </div>
+            <div class="diagram-body">
+                <div class="mermaid" id="diag-01">
+graph TD
+    User((User Access)) --> DNS[Cloudflare / DNS]
+
+    subgraph Domains ["Multidomain Ecosystem"]
+    ID[id.greenjade.test<br/>Portal & Identity]
+    API[api.greenjade.test<br/>Games API & SPA]
+    CP[cp.greenjade.test<br/>Control Panel]
+    end
+
+    DNS --> ID
+    DNS --> API
+    DNS --> CP
+
+    ID --- Auth[Auth Logic]
+    API --- Auth
+    CP --- Auth
+
+    Auth --- DB[(Central Database)]
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 02 -->
+    <section class="doc-section" id="s02">
+        <div class="section-head">
+            <span class="sec-num">02</span>
+            <div class="sec-info">
+                <h2 class="sec-title">Game Services Integration</h2>
+                <p class="sec-sub">Tích hợp Dịch vụ Game — Internal Service Routing</p>
+            </div>
+        </div>
+        <div class="diagram-wrap">
+            <div class="diagram-toolbar">
+                <span class="diagram-label">flowchart · left-right</span>
+                <div class="diagram-actions">
+                    <button class="diag-btn" onclick="expandDiagram('diag-02','Game Services Integration')">⤢ Expand</button>
+                    <button class="diag-btn" onclick="copySection('s02')">⎘ Copy link</button>
+                </div>
+            </div>
+            <div class="diagram-body">
+                <div class="mermaid" id="diag-02">
+graph LR
+    Client[Game Client<br/>H5 / Mobile] --> Gateway[API Gateway]
+
+    subgraph Internal ["Internal Services"]
+    Gateway --> GC[GameContext Service]
+    Gateway --> AS[Auth Service]
+    GC --> Telemetry[Audit & Logs]
+    AS --> Telemetry
+    end
+
+    Gateway --> DB[(PostgreSQL/MySQL)]
+    Telemetry --> LogDB[(Auth Logs Table)]
+
+    classDef game fill:#fffae6,stroke:#d97706,stroke-width:2px;
+    class Client,GC,Gateway game;
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 03 -->
+    <section class="doc-section" id="s03">
+        <div class="section-head">
+            <span class="sec-num">03</span>
+            <div class="sec-info">
+                <h2 class="sec-title">System Sequence Flow</h2>
+                <p class="sec-sub">Tuần tự xử lý Chuyên sâu — Full Auth Handshake</p>
+            </div>
+        </div>
+        <div class="diagram-wrap">
+            <div class="diagram-toolbar">
+                <span class="diagram-label">sequence · autonumber</span>
+                <div class="diagram-actions">
+                    <button class="diag-btn" onclick="expandDiagram('diag-03','System Sequence Flow')">⤢ Expand</button>
+                    <button class="diag-btn" onclick="copySection('s03')">⎘ Copy link</button>
+                </div>
+            </div>
+            <div class="diagram-body">
+                <div class="mermaid" id="diag-03">
+sequenceDiagram
+    autonumber
+    participant U as User (Gateway)
+    participant R as Throttle Gate
+    participant LC as Login Controller
+    participant AS as Auth Service
+    participant AL as Audit Subscriber
+    participant DB as Data Central
+
+    Note over U, R: Incoming Secure Handshake
+    U->>R: Authentication Request
+    R->>R: Rate Limit Verification
+    R->>LC: Delegate to Service
+    LC->>AS: validateCredentials()
+    AS->>DB: Fetch Account Identity
+    DB-->>AS: Object Model
+
+    Note right of AS: Security Guard Checks
+    alt Protocol Fail (Locked/Banned/Inactive)
+    AS->>AL: Emit Security Failure
+    AL-->>DB: persistAuditLog()
+    AS-->>LC: reject()
+    else Context Passed
+    AS->>AS: Verify Argon2/Bcrypt Hash
+    alt Hash Mismatch
+    AS->>DB: incrementFailedCycle()
+    AS->>AL: Emit Credentials Failure
+    AL-->>DB: persistAuditLog()
+    AS-->>LC: reject()
+    else Access Granted
+    AS->>DB: resetHardeningCounters()
+    AS->>AS: establishSession()
+    AS->>AL: Emit Success State
+    AL-->>DB: persistAuditLog()
+    AS-->>LC: approve()
+    end
+    end
+
+    LC-->>U: Generic Secure Response
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 04 -->
+    <section class="doc-section" id="s04">
+        <div class="section-head">
+            <span class="sec-num">04</span>
+            <div class="sec-info">
+                <h2 class="sec-title">Technical Topology</h2>
+                <p class="sec-sub">Sơ đồ Phân lớp Hệ thống — Layered Service Architecture</p>
+            </div>
+        </div>
+        <div class="diagram-wrap">
+            <div class="diagram-toolbar">
+                <span class="diagram-label">flowchart · layered subgraphs</span>
+                <div class="diagram-actions">
+                    <button class="diag-btn" onclick="expandDiagram('diag-04','Technical Topology')">⤢ Expand</button>
+                    <button class="diag-btn" onclick="copySection('s04')">⎘ Copy link</button>
+                </div>
+            </div>
+            <div class="diagram-body">
+                <div class="mermaid" id="diag-04">
+graph TD
+    subgraph EdgeBoundary ["Edge Boundary Control"]
+    UI["Portal UI / API Front"]
+    RL["Rate Limiter Guard (Throttle)"]
+    UI --- RL
+    end
+
+    subgraph ServiceFabric ["Service Orchestration"]
+    RL --> LC["Auth Orchestrator (Controller)"]
+    LC --> AS["Hardening Service (AuthService)"]
+    end
+
+    subgraph SecurityVault ["Security Engine Layer"]
+    AS --> H["Hash Resolver (Argon2)"]
+    AS --> E["Event Distribution Bus"]
+    end
+
+    subgraph Persistence ["Persistence & Analytics"]
+    E --> LS["Audit Subscriber (AuthLog)"]
+    LS --> |Resolver| GC["GameContext Service"]
+    LS --> |Storage| DBL[("Audit Logs Store")]
+    AS --> |Registry| DBU[("Identities Store")]
+    end
+
+    style UI fill:#fff,stroke:#0f172a,stroke-width:2px
+    style AS fill:#f8fafc,stroke:#0f172a,stroke-width:2px
+    style RL fill:#fff1f2,stroke:#e11d48
+    style H fill:#fff1f2,stroke:#e11d48
+    style DBL fill:#f0fdf4,stroke:#16a34a
+    style DBU fill:#f0fdf4,stroke:#16a34a
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 05 -->
+    <section class="doc-section" id="s05">
+        <div class="section-head">
+            <span class="sec-num">05</span>
+            <div class="sec-info">
+                <h2 class="sec-title">Authentication Mindmap</h2>
+                <p class="sec-sub">Bản đồ Tư duy Auth Flow — Full Auth Taxonomy</p>
+            </div>
+        </div>
+        <div class="diagram-wrap">
+            <div class="diagram-toolbar">
+                <span class="diagram-label">mindmap · radial</span>
+                <div class="diagram-actions">
+                    <button class="diag-btn" onclick="expandDiagram('diag-05','Authentication Mindmap')">⤢ Expand</button>
+                    <button class="diag-btn" onclick="copySection('s05')">⎘ Copy link</button>
+                </div>
+            </div>
+            <div class="diagram-body">
+                <div class="mermaid" id="diag-05">
+mindmap
+    root((Auth Flow))
+        Registration
+            Validation
+            User Creation
+            Registered Event
+            Auto Database Log
+        Login
+            Security Layers
+                Rate Limiting
+                Account Status Check
+                Lockout Logic
+            Verification
+                Hash Matching
+                Session/Token Issuance
+            Failure Handling
+                Increment Failed Count
+                Manual Event Log
+        Logout
+            Session Destroy
+            Token Revocation
+            Audit Trail
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 06 -->
+    <section class="doc-section" id="s06">
+        <div class="section-head">
+            <span class="sec-num">06</span>
+            <div class="sec-info">
+                <h2 class="sec-title">System Quality & Security Specs</h2>
+                <p class="sec-sub">Technical parameters and hardening configuration</p>
+            </div>
+        </div>
+        <div class="spec-grid">
+            <div class="spec-card">
+                <div class="spec-cat">Traffic Control</div>
+                <h3>Rate Limiting Shield</h3>
+                <table class="spec-table">
+                    <tr><td>Window Period</td><td>60 Seconds</td></tr>
+                    <tr><td>Bucket Capacity</td><td>5 Attempts</td></tr>
+                    <tr><td>Identification</td><td>SHA256(User:IP)</td></tr>
+                    <tr><td>Policy</td><td>Dynamic Throttling</td></tr>
+                </table>
+            </div>
+            <div class="spec-card">
+                <div class="spec-cat am">Cyber Hardening</div>
+                <h3>Account Lockout (AL)</h3>
+                <table class="spec-table">
+                    <tr><td>Tolerance Level</td><td>5 Failures</td></tr>
+                    <tr><td>Cool-off Duration</td><td>15 Minutes</td></tr>
+                    <tr><td>Unlock Trigger</td><td>Temporal/Success</td></tr>
+                    <tr><td>State</td><td>Stateless Persistence</td></tr>
+                </table>
+            </div>
+            <div class="spec-card">
+                <div class="spec-cat gr">Data Intelligence</div>
+                <h3>Comprehensive Auditing</h3>
+                <table class="spec-table">
+                    <tr><td>Telemetry Source</td><td>AuthLog Model</td></tr>
+                    <tr><td>Meta Resolution</td><td>GameContext API</td></tr>
+                    <tr><td>Dimensions</td><td>Fingerprint, IP, ID</td></tr>
+                    <tr><td>Encryption</td><td>AES-256 Meta</td></tr>
+                </table>
+            </div>
+            <div class="spec-card">
+                <div class="spec-cat">Privacy Gear</div>
+                <h3>Security UX & Protection</h3>
+                <table class="spec-table">
+                    <tr><td>Hash Standard</td><td>Argon2id / Bcrypt</td></tr>
+                    <tr><td>Failure Mask</td><td>Strict Generic</td></tr>
+                    <tr><td>Discovery Guard</td><td>Anti-Enumeration</td></tr>
+                    <tr><td>Tracking</td><td>SHA Footprints</td></tr>
+                </table>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="closeModal(event)">
+    <div id="modal-box">
+        <div id="modal-header">
+            <span id="modal-title">Diagram</span>
+            <button id="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div id="modal-content"></div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">Copied to clipboard ✓</div>
+
+<script>
+mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+        primaryColor: '#f8fafc',
+        primaryTextColor: '#0f172a',
+        primaryBorderColor: '#cbd5e1',
+        lineColor: '#475569',
+        secondaryColor: '#ffffff',
+        tertiaryColor: '#f1f5f9',
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '13px',
+        edgeLabelBackground: '#ffffff',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1',
+    },
+    securityLevel: 'loose',
+    sequence: {
+        showSequenceNumbers: true,
+        useMaxWidth: false,
+        height: 64,
+        actorMargin: 80,
+        messageFontSize: 12,
+        noteFontSize: 12,
+        mirrorActors: false,
+    },
+    flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 40,
+        rankSpacing: 70,
+        nodeSpacing: 45,
+    },
+    mindmap: { useMaxWidth: false }
+});
+
+// ── READING PROGRESS ──
+const bar = document.getElementById('reading-progress');
+window.addEventListener('scroll', () => {
+    const total = document.body.scrollHeight - window.innerHeight;
+    bar.style.width = Math.min(100, (window.scrollY / total) * 100) + '%';
+}, { passive: true });
+
+// ── ACTIVE NAV ──
+const sections = document.querySelectorAll('.doc-section');
+const navLinks = document.querySelectorAll('.nav-link[data-section]');
+const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+        if (e.isIntersecting) {
+            navLinks.forEach(l => l.classList.toggle('active', l.dataset.section === e.target.id));
+        }
+    });
+}, { rootMargin: '-30% 0px -60% 0px' });
+sections.forEach(s => observer.observe(s));
+
+// ── THEME ──
+function toggleTheme() {
+    const html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    const icon = document.getElementById('theme-icon');
+    if (html.dataset.theme === 'dark') {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 4.546 7.12A6 6 0 0 1 5.88 3.454 4.97 4.97 0 0 0 8 3z" fill="currentColor" stroke="none"/>';
+    } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.22 3.22l1.06 1.06M11.72 11.72l1.06 1.06M11.72 4.28l1.06-1.06M3.22 12.78l1.06-1.06"/>';
+    }
+}
+
+// ── EXPAND MODAL ──
+function expandDiagram(id, title) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const clone = el.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.style.minWidth = '100%';
+    const content = document.getElementById('modal-content');
+    content.innerHTML = '';
+    content.appendChild(clone);
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-overlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    // Render mermaid in clone
+    mermaid.run({ nodes: [clone] });
+}
+
+function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal-overlay') && e.target !== document.getElementById('modal-close')) return;
+    if (!e) {}
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// ── SHARE ──
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function copyShareLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => showToast('Share link copied ✓'));
+}
+
+function copySection(id) {
+    const url = window.location.origin + window.location.pathname + '#' + id;
+    navigator.clipboard.writeText(url).then(() => showToast('Section link copied ✓'));
+}
+
+// ── MOBILE SIDEBAR ──
+document.getElementById('topbar').addEventListener('click', e => {
+    if (e.target.closest('.topbar-logo')) {
+        const s = document.getElementById('sidebar');
+        s.classList.toggle('open');
+    }
+});
+</script>
+</body>
+</html>

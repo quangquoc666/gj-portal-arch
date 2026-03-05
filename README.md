@@ -1,1 +1,0 @@
-# gj-portal-arch
